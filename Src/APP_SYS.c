@@ -55,13 +55,23 @@ typedef struct
 // ********************************************************************
 // *                      Variables
 // ********************************************************************
+///@brief State of each module available
 static t_eCyclicModState g_ModuleState_ae[APPSYS_MODULE_NB];
+///@brief Fast Task Function call 
 static t_cbAPPSYS_FastTask * g_ModFastTask_apcb[APPSYS_MODULE_NB];
+///@brief App Sys module state
 static t_eCyclicModState g_AppSysModuleState_e = STATE_CYCLIC_PREOPE;
+/// @brief Cyclic Duration
 static t_uint32 g_CyclicDuration_u32 = (t_uint32)0;
+/// @brief Cpu load
+static t_float32 g_CpuLoad_f32 = (t_uint32)0;
+/// @brief How many times the fast task take in ms
 static t_uint32 g_fastTaskDuration_u32 = (t_uint32)0;
+
+/// @brief SafeMem stuff
 static t_sSafeMem_BlockInfo g_sfbk_isFastTaskOn_s;
 static t_sSafeMem_BlockInfo g_sfbk_mskfastTask_s;
+
 static t_bool g_isFastTaskON_b = (t_bool)False;
 static t_uint16 g_mskFastTaskCall_u16 = (t_uint16)0; /**< to know the people to call */
 static t_bool g_lockAssert_b = (t_bool)False;
@@ -403,6 +413,7 @@ static t_eReturnCode s_APPSYS_Operational(void)
 
             FMKCPU_GetTick(&currentCnt_u32); 
             g_CyclicDuration_u32 = (t_uint32)(currentCnt_u32 - s_previousCnt_u32);
+            g_CpuLoad_f32 = (t_float32)(g_CyclicDuration_u32 / APPSYS_ELAPSED_TIME_CYCLIC);
 
             if(g_CyclicDuration_u32 > APPSYS_ELAPSED_TIME_CYCLIC)
             {
