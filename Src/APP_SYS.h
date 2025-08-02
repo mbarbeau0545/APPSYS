@@ -20,6 +20,9 @@
     // ********************************************************************
     #include "FMK_HAL/FMK_CPU/Src/FMK_CPU.h"
     #include "./APP_CFG/ConfigFiles/APPSYS_ConfigPublic.h"
+    #include "FMK_HAL/FMK_SRL/Src/FMK_SRL.h"
+
+    #include <string.h>
     // ********************************************************************
     // *                      Defines
     // ********************************************************************
@@ -29,6 +32,7 @@
         FMKCPU_GetTick(&_tick); \
         APPSYS_AssertionTrap(info, SHORTEN_PATH(__FILE__), __LINE__, _tick); \
     } while(0)
+
     // ********************************************************************
     // *                      Types
     // ********************************************************************

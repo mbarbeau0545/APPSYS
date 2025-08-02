@@ -120,6 +120,7 @@ void APPSYS_Init(void)
 {
     t_eReturnCode Ret_e = RC_OK;
     t_uint8 modIndex_u8 = 0;
+    t_sFMKSRL_DrvSerialCfg SrlCfg_s;
     // set sys confgiguration
     Ret_e = s_APPSYS_ResAlloc();
 
@@ -148,12 +149,33 @@ void APPSYS_Init(void)
             }
         }
     }
+    //---- set fast tasl timer ope ----//
     if(Ret_e == RC_OK)
     {
         Ret_e = FMKTIM_Set_EvntTimerCfg(APPSYS_ITLINE_FASTTASK,
                                         APPSYS_ELASPED_TIME_FASTTASK,
                                         s_APPSYS_FastTask);
     }
+    //---- set diag log serial line ----//
+#ifdef FMKSRL_DEBUG_UART_ENABLE
+    if(Ret_e == RC_OK)
+    {
+        SrlCfg_s.runMode_e = FMKSRL_LINE_RUNMODE_DMA;
+        SrlCfg_s.hwProtType_e = FMKSRL_HW_PROTOCOL_UART;
+        SrlCfg_s.hwCfg_s.Baudrate_e = FMKSRL_LINE_BAUDRATE_115200,
+        SrlCfg_s.hwCfg_s.Mode_e = FMKSRL_LINE_MODE_RX_TX;
+        SrlCfg_s.hwCfg_s.Parity_e = FMKSRL_LINE_PARITY_NONE,
+        SrlCfg_s.hwCfg_s.Stopbit_e = FMKSRL_LINE_STOPBIT_1,
+        SrlCfg_s.hwCfg_s.wordLenght_e = FMKSRL_LINE_WORDLEN_8BITS,
+        SrlCfg_s.CfgSpec_u.uartCfg_s.hwFlowCtrl_e = FMKSRL_UART_HW_FLOW_CTRL_NONE;
+        SrlCfg_s.CfgSpec_u.uartCfg_s.Type_e = FMKSRL_UART_TYPECFG_UART;
+
+        Ret_e = FMKSRL_InitDrv( FMKSRL_SERIAL_LINE_2,
+                                SrlCfg_s,
+                                (t_cbFMKSRL_RcvMsgEvent *)NULL_FUNCTION,
+                                (t_cbFMKSRL_TransmitMsgEvent *)NULL_FUNCTION);
+    }
+#endif // FMKSRL_DEBUG_UART_ENABLE
 
     g_AssertInfo_s.debugInfo_u16 = (t_uint16)0;
     g_AssertInfo_s.line_u32 = (t_uint32)0;
@@ -226,6 +248,12 @@ void APPSYS_AssertionTrap(  t_uint16 f_Info_u16,
         strncpy(g_AssertInfo_s.file_ac, f_file_str, APPSYS_FILE_NAME_LEN - 1);
         g_AssertInfo_s.file_ac[APPSYS_FILE_NAME_LEN - 1] = '\0';  // Assurer la terminaison
         g_AssertInfo_s.line_u32 = f_line_u32;
+
+        FMKSRL_LOG("[%d] Assertion in file %s line : %d, info : %d\r\n", 
+                    f_captureTime_u32,
+                    g_AssertInfo_s.file_ac, 
+                    f_line_u32,
+                    f_Info_u16);
     }
     return;
 }
@@ -435,13 +463,13 @@ static t_eReturnCode s_APPSYS_Operational(void)
     }
     //---- fast task managment ----//
     if((mskfastTask_u16 != (t_uint16)0)
-    && (isFastTaskON_b == (t_bool)False))
+    && (isFastTaskON_b == (t_bool)FALSE))
     {
         Ret_e = FMKTIM_Set_EvntLineState(   APPSYS_ITLINE_FASTTASK,
                                             FMKTIM_EVNT_OPE_START_TIMER);
         if(Ret_e == RC_OK)
         {
-            isFastTaskON_b = False;
+            isFastTaskON_b = TRUE;
             Ret_e = SMB_Write(&g_sfbk_isFastTaskOn_s, &isFastTaskON_b);
             //---- ASSERTION already deal upon state machine function ----//
         }
@@ -492,7 +520,8 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
                 FMKCPU_GetTick(&startTime_u32);
                 for(idxModule_u16 = (t_uint16)0 ; idxModule_u16 < APPSYS_MODULE_NB ; idxModule_u16++)
                 {
-                    if(GETBIT(mskfastTaskCall_u16, idxModule_u16) == BIT_IS_SET_16B)
+                    if((GETBIT(mskfastTaskCall_u16, idxModule_u16) == BIT_IS_SET_16B)
+                    && g_ModFastTask_apcb[idxModule_u16] != (t_cbAPPSYS_FastTask *)NULL_FUNCTION)
                     {
                         g_ModFastTask_apcb[idxModule_u16]();
                     }
