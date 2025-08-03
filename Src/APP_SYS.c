@@ -110,6 +110,15 @@ static void s_APPSYS_Set_ModulesCyclic();
 *
 */
 static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_uint8 f_InterruptLine_u8);
+/**
+*
+*	@brief  Software Diagnostic Status Callback
+*
+*/
+static void s_APPSYS_SoftDiagMngmt( t_eAPPSDM_DiagnosticItem f_item_e,
+                                    t_eAPPSDM_DiagnosticReport f_reportState_e,
+                                    t_uint16 f_debugInfo1_u16,
+                                    t_uint16 f_debugInfo2_u16);
 //****************************************************************************
 //                      Public functions - Implementation
 //********************************************************************************
@@ -134,7 +143,7 @@ void APPSYS_Init(void)
     }
     if(Ret_e == RC_OK)
     {
-        //Ret_e = FMKCPU_Set_WwdgCfg((t_eFMKCPu_WwdgResetPeriod)FMKCPU_WWDG_RESET_CFG);
+        Ret_e = FMKCPU_Set_WwdgCfg((t_eFMKCPu_WwdgResetPeriod)FMKCPU_WWDG_RESET_CFG);
     }
     if(Ret_e == RC_OK)
     {
@@ -149,16 +158,9 @@ void APPSYS_Init(void)
             }
         }
     }
-    //---- set fast tasl timer ope ----//
-    if(Ret_e == RC_OK)
-    {
-        Ret_e = FMKTIM_Set_EvntTimerCfg(APPSYS_ITLINE_FASTTASK,
-                                        APPSYS_ELASPED_TIME_FASTTASK,
-                                        s_APPSYS_FastTask);
-    }
     //---- set diag log serial line ----//
-#ifdef FMKSRL_DEBUG_UART_ENABLE
-    if(Ret_e == RC_OK)
+    if(FMKSRL_DEBUG_UART_ENABLE == M_TRUE
+    && (Ret_e == RC_OK))
     {
         SrlCfg_s.runMode_e = FMKSRL_LINE_RUNMODE_DMA;
         SrlCfg_s.hwProtType_e = FMKSRL_HW_PROTOCOL_UART;
@@ -170,18 +172,29 @@ void APPSYS_Init(void)
         SrlCfg_s.CfgSpec_u.uartCfg_s.hwFlowCtrl_e = FMKSRL_UART_HW_FLOW_CTRL_NONE;
         SrlCfg_s.CfgSpec_u.uartCfg_s.Type_e = FMKSRL_UART_TYPECFG_UART;
 
-        Ret_e = FMKSRL_InitDrv( FMKSRL_SERIAL_LINE_2,
+        Ret_e = FMKSRL_InitDrv( FMKSRL_DEBUG_SERIAL_LINE,
                                 SrlCfg_s,
                                 (t_cbFMKSRL_RcvMsgEvent *)NULL_FUNCTION,
                                 (t_cbFMKSRL_TransmitMsgEvent *)NULL_FUNCTION);
+        if(Ret_e == RC_OK)
+        {
+            Ret_e = APPSDM_AddCallbackEvnt(s_APPSYS_SoftDiagMngmt);
+        }        
     }
-#endif // FMKSRL_DEBUG_UART_ENABLE
+    //---- set fast tasl timer ope ----//
+    if(Ret_e == RC_OK)
+    {
+        Ret_e = FMKTIM_Set_EvntTimerCfg(APPSYS_ITLINE_FASTTASK,
+                                        APPSYS_ELASPED_TIME_FASTTASK,
+                                        s_APPSYS_FastTask);
+    }
 
     g_AssertInfo_s.debugInfo_u16 = (t_uint16)0;
     g_AssertInfo_s.line_u32 = (t_uint32)0;
-
+    
     if(Ret_e < RC_OK)
     {    
+        ASSERT((t_uint16)Ret_e);
         g_AppSysModuleState_e = STATE_CYCLIC_ERROR;
     }
     return;
@@ -347,6 +360,8 @@ static void s_APPSYS_Set_ModulesCyclic(void)
 
     //---- reset lock assert ----//
     g_lockAssert_b = (t_bool)False;
+    (void)FMKCPU_RearmWwdg();
+
 
     return;
 }
@@ -423,8 +438,6 @@ static t_eReturnCode s_APPSYS_Operational(void)
     t_uint16 mskfastTask_u16 = (t_uint16)0;
 
     FMKCPU_GetTick(&currentCnt_u32);
-
-    //Ret_e = FMKCPU_ResetWwdg();
     
     Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTask_u16);
     if(Ret_e ==  RC_OK)
@@ -537,19 +550,32 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
                                             Mu16ExtractByte1from32(g_fastTaskDuration_u32),
                                             Mu16ExtractByte0from32(g_fastTaskDuration_u32));
                 }
-                else 
-                {
-                    APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APP_FASTTASK_TIMEOUT,
-                                            APPSDM_DIAG_ITEM_REPORT_PASS,
-                                            (t_uint16)0,
-                                            (t_uint16)0);
-                } 
             }
         }
     }
 
     return;
 }
+/*********************************
+ * s_APPSYS_FastTask
+ *********************************/
+static void s_APPSYS_SoftDiagMngmt( t_eAPPSDM_DiagnosticItem f_item_e,
+                                    t_eAPPSDM_DiagnosticReport f_reportState_e,
+                                    t_uint16 f_debugInfo1_u16,
+                                    t_uint16 f_debugInfo2_u16)
+{
+    t_uint32 currentTime;
+    FMKCPU_GetTick(&currentTime);
+
+    FMKSRL_LOG("[%d] : Diag Item %d, status : %d, debug1 : %d, debug2 : %d\r\n",
+                currentTime,
+                f_item_e,
+                f_reportState_e,
+                f_debugInfo1_u16,
+                f_debugInfo2_u16);
+}
+
+
 //************************************************************************************
 // End of File
 //************************************************************************************
