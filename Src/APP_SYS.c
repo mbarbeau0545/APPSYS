@@ -141,7 +141,8 @@ void APPSYS_Init(void)
     {
         Ret_e = FMKCPU_Set_SysClockCfg(APPSYS_SYSTEM_CORE_SPEED);
     }
-    if(Ret_e == RC_OK)
+    if((Ret_e == RC_OK)
+    && (APPSYS_WATCHDOG_ENABLE == TRUE))
     {
         Ret_e = FMKCPU_Set_WwdgCfg((t_eFMKCPu_WwdgResetPeriod)FMKCPU_WWDG_RESET_CFG);
     }
@@ -354,14 +355,23 @@ static void s_APPSYS_Set_ModulesCyclic(void)
         //---- update mod State ----//
         if(c_AppSys_ModuleFunc_apf[modIndex_u8].GetState_pcb != NULL_FUNCTION)
         {
-            (void)c_AppSys_ModuleFunc_apf[modIndex_u8].GetState_pcb(&g_ModuleState_ae[modIndex_u8]);
+            Ret_e = c_AppSys_ModuleFunc_apf[modIndex_u8].GetState_pcb(&g_ModuleState_ae[modIndex_u8]);
+
+            if((Ret_e == RC_OK)
+            && (c_AppSys_ModuleFunc_apf[modIndex_u8].signal_e < APPSIG_SIGNAL_NB))
+            {
+                Ret_e = APPSIG_SetSignalValue(  c_AppSys_ModuleFunc_apf[modIndex_u8].signal_e,
+                                                (t_float32)g_ModuleState_ae[modIndex_u8]);
+            }
         }
     }
 
     //---- reset lock assert ----//
     g_lockAssert_b = (t_bool)False;
-    (void)FMKCPU_RearmWwdg();
-
+    if(APPSYS_WATCHDOG_ENABLE == (t_bool)TRUE)
+    {
+        (void)FMKCPU_RearmWwdg();
+    }
 
     return;
 }
@@ -471,6 +481,8 @@ static t_eReturnCode s_APPSYS_Operational(void)
                                         (t_uint16)0,
                                         (t_uint16)0);
             }
+            //---- send signal g_cyclic_duration ----//
+            Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_CYCLIC_DURATION, (t_float32)g_CyclicDuration_u32);
             
         }
     }
@@ -542,6 +554,7 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
                 FMKCPU_GetTick(&endTime_u32);
 
                 g_fastTaskDuration_u32 = (endTime_u32 - startTime_u32);
+                Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_FASTTASKDURATION, (t_float32)g_fastTaskDuration_u32);
 
                 if(g_fastTaskDuration_u32 > APPSYS_ELASPED_TIME_FASTTASK)
                 {
