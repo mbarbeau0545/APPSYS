@@ -300,7 +300,7 @@ t_eReturnCode APPSYS_SetFastTaskState(t_eAppSys_ModuleList f_ModuleId_e,  t_eAPP
     t_eReturnCode Ret_e = RC_OK;
     t_uint16 mskfastTaskCall_u16;
 
-    Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTaskCall_u16);
+    Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTaskCall_u16, sizeof(t_uint16));
 
 
     if((f_ModuleId_e >= APPSYS_MODULE_NB)
@@ -325,7 +325,7 @@ t_eReturnCode APPSYS_SetFastTaskState(t_eAppSys_ModuleList f_ModuleId_e,  t_eAPP
         }
         if(Ret_e == RC_OK)
         {
-            Ret_e = SMB_Write(&g_sfbk_mskfastTask_s, &mskfastTaskCall_u16);
+            Ret_e = SMB_Write(&g_sfbk_mskfastTask_s, &mskfastTaskCall_u16, sizeof(t_uint16));
         }
     }
 
@@ -449,10 +449,10 @@ static t_eReturnCode s_APPSYS_Operational(void)
 
     FMKCPU_GetTick(&currentCnt_u32);
     
-    Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTask_u16);
+    Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTask_u16, sizeof(t_uint16));
     if(Ret_e ==  RC_OK)
     {
-        Ret_e = SMB_Read(&g_sfbk_isFastTaskOn_s, &isFastTaskON_b);
+        Ret_e = SMB_Read(&g_sfbk_isFastTaskOn_s, &isFastTaskON_b, sizeof(t_bool));
     }
     if(Ret_e == RC_OK)
     {
@@ -483,6 +483,11 @@ static t_eReturnCode s_APPSYS_Operational(void)
             }
             //---- send signal g_cyclic_duration ----//
             Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_CYCLIC_DURATION, (t_float32)g_CyclicDuration_u32);
+
+            if(Ret_e == RC_OK)
+            {
+                Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_FASTTASKDURATION, (t_float32)g_fastTaskDuration_u32);
+            }
             
         }
     }
@@ -495,7 +500,7 @@ static t_eReturnCode s_APPSYS_Operational(void)
         if(Ret_e == RC_OK)
         {
             isFastTaskON_b = TRUE;
-            Ret_e = SMB_Write(&g_sfbk_isFastTaskOn_s, &isFastTaskON_b);
+            Ret_e = SMB_Write(&g_sfbk_isFastTaskOn_s, &isFastTaskON_b, sizeof(t_bool));
             //---- ASSERTION already deal upon state machine function ----//
         }
     }
@@ -515,7 +520,7 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
     t_bool isFastTaskON_b = False;
     t_uint16 mskfastTaskCall_u16;
 
-    Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTaskCall_u16);
+    Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTaskCall_u16, sizeof(t_uint16));
     if(Ret_e != RC_OK)
     {
         ASSERT((t_uint16)Ret_e);
@@ -537,7 +542,8 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
                 else 
                 {
                     Ret_e = SMB_Write(  &g_sfbk_isFastTaskOn_s,
-                                        (void *)(&isFastTaskON_b));
+                                        (void *)(&isFastTaskON_b),
+                                        sizeof(t_bool));
                 }
             }
             else 
@@ -554,7 +560,6 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
                 FMKCPU_GetTick(&endTime_u32);
 
                 g_fastTaskDuration_u32 = (endTime_u32 - startTime_u32);
-                Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_FASTTASKDURATION, (t_float32)g_fastTaskDuration_u32);
 
                 if(g_fastTaskDuration_u32 > APPSYS_ELASPED_TIME_FASTTASK)
                 {
