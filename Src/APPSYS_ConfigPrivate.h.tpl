@@ -31,6 +31,7 @@
     #include "3_APP/APP_CTRL/APP_SPM/Src/APP_SPM.h"
     #include "3_APP/APP_CTRL/APP_SNS/Src/APP_SNS.h"
     #include "3_APP/APP_CTRL/APP_UDS/Src/APP_UDS.h"
+    #include "3_APP/APP_CTRL/APP_SIG/Src/APP_SIG.h"
     #include "3_APP/APP_LGC/Src/APP_LGC.h"
     // ********************************************************************
     // *                      Defines
@@ -38,9 +39,10 @@
 
     #define APPSYS_SYSTEM_CORE_SPEED FMKCPU_CORE_CLOCK_SPEED_128MHZ
 
-    #define APPSYS_ELAPSED_TIME_CYCLIC ((t_uint8)40)     /**< Elapsed time (in ms) between cyclic function call*/
-    #define APPSYS_ITLINE_FASTTASK FMKTIM_INTERRUPT_LINE_EVNT_1 /**< Timer Line use for FastTask */
-    #define APPSYS_ELASPED_TIME_FASTTASK ((t_uint32)5)  /**< Fast Task every 5 ms */
+    #define APPSYS_ELAPSED_TIME_CYCLIC          ((t_uint8)40)                   /**< Elapsed time (in ms) between cyclic function call*/
+    #define APPSYS_ITLINE_FASTTASK              FMKTIM_INTERRUPT_LINE_EVNT_1    /**< Timer Line use for FastTask */
+    #define APPSYS_ELASPED_TIME_FASTTASK        ((t_uint32)5)                   /**< Fast Task every 5 ms */
+    #define APPSYS_WATCHDOG_ENABLE              (FALSE)
     // ********************************************************************
     // *                      Types
     // ********************************************************************
@@ -97,6 +99,7 @@
         t_cbAppSys_FuncCyclic * Cyclic_pcb;
         t_cbAppSys_GetState   * GetState_pcb;
         t_cbAppSys_SetState   * SetState_pcb;
+        t_eAPPSIG_Signal        signal_e;
     } t_sAppSys_SysFunc;
     // ********************************************************************
     // *                      Prototypes
@@ -110,25 +113,25 @@
     /**< variable to store modules functions */
     t_sAppSys_SysFunc c_AppSys_ModuleFunc_apf[APPSYS_MODULE_NB] = {
         //----- FrameWork module -----//
-        {FMKCPU_Init,    FMKCPU_Cyclic,     FMKCPU_GetState,   FMKCPU_SetState},
-        {FMKTIM_Init,    FMKTIM_Cyclic,     FMKTIM_GetState,   FMKTIM_SetState},
-        {FMKHRT_Init,    FMKHRT_Cyclic,     FMKHRT_GetState,   FMKHRT_SetState},
-        {FMKCDA_Init,    FMKCDA_Cyclic,     FMKCDA_GetState,   FMKCDA_SetState},
-        {FMKIO_Init,     FMKIO_Cyclic,      FMKIO_GetState,    FMKIO_SetState},
+        {FMKCPU_Init,    FMKCPU_Cyclic,     FMKCPU_GetState,   FMKCPU_SetState,     APPSIG_SIGNAL_FMKCPU_MODSTATE},
+        {FMKTIM_Init,    FMKTIM_Cyclic,     FMKTIM_GetState,   FMKTIM_SetState,     APPSIG_SIGNAL_FMKTIM_MODSTATE},
+        {FMKHRT_Init,    FMKHRT_Cyclic,     FMKHRT_GetState,   FMKHRT_SetState,     APPSIG_SIGNAL_FMKHRT_MODSTATE},
+        {FMKCDA_Init,    FMKCDA_Cyclic,     FMKCDA_GetState,   FMKCDA_SetState,     APPSIG_SIGNAL_FMKCDA_MODSTATE},
+        {FMKIO_Init,     FMKIO_Cyclic,      FMKIO_GetState,    FMKIO_SetState,      APPSIG_SIGNAL_FMKIO_MODSTATE},
 #ifdef APPSYS_MODULE_FMKCAN_ENABLE
-        {FMKFDCAN_Init,  FMKFDCAN_Cyclic,   FMKFDCAN_GetState, FMKFDCAN_SetState},
+        {FMKFDCAN_Init,  FMKFDCAN_Cyclic,   FMKFDCAN_GetState, FMKFDCAN_SetState,   APPSIG_SIGNAL_FMKFDCAN_MODSTATE},
 #endif // APPSYS_MODULE_FMKCAN_ENABLE
 #ifdef APPSYS_MODULE_FMKSRL_ENABLE
-        {FMKSRL_Init,   FMKSRL_Cyclic,      FMKSRL_GetState,   FMKSRL_SetState},
+        {FMKSRL_Init,   FMKSRL_Cyclic,      FMKSRL_GetState,   FMKSRL_SetState,     APPSIG_SIGNAL_FMKSRL_MODSTATE},
 #endif // APPSYS_MODULE_FMKSRL_ENABLE
 
         //----- Application module -----//
-        {APPSDM_Init,    APPSDM_Cyclic,     APPSDM_GetState,   APPSDM_SetState},
-        {APPSPM_Init,    APPSPM_Cyclic,     APPSPM_GetState,   APPSPM_SetState},
-        {APPSNS_Init,    APPSNS_Cyclic,     APPSNS_GetState,   APPSNS_SetState},
-        {APPACT_Init,    APPACT_Cyclic,     APPACT_GetState,   APPACT_SetState},
-        {APPLGC_Init,    APPLGC_Cyclic,     APPLGC_GetState,   APPLGC_SetState},
-        {APPUDS_Init,    APPUDS_Cyclic,     APPUDS_GetState,   APPUDS_SetState},
+        {APPSDM_Init,    APPSDM_Cyclic,     APPSDM_GetState,   APPSDM_SetState,      APPSIG_SIGNAL_APPSDM_MODSTATE},
+        {APPSPM_Init,    APPSPM_Cyclic,     APPSPM_GetState,   APPSPM_SetState,      APPSIG_SIGNAL_APPSPM_MODSTATE},
+        {APPSIG_Init,    APPSIG_Cyclic,     APPSIG_GetState,   APPSIG_SetState,      APPSIG_SIGNAL_APPSIG_MODSTATE},
+        {APPSNS_Init,    APPSNS_Cyclic,     APPSNS_GetState,   APPSNS_SetState,      APPSIG_SIGNAL_APPSNS_MODSTATE},
+        {APPACT_Init,    APPACT_Cyclic,     APPACT_GetState,   APPACT_SetState,      APPSIG_SIGNAL_APPACT_MODSTATE},
+        {APPLGC_Init,    APPLGC_Cyclic,     APPLGC_GetState,   APPLGC_SetState,      APPSIG_SIGNAL_APPLGC_MODSTATE},
     };
 
     //********************************************************************************
