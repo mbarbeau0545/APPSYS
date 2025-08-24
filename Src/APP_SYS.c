@@ -38,7 +38,13 @@ typedef struct
 
 /* CAUTION : Automatic generated code section for Enum: End */
 //-----------------------------ENUM TYPES-----------------------------//
-
+///@brief FSM for Cfg state
+typedef enum 
+{
+    APPSYS_FSM_CFGSTATE_GET_MACH = 0,                   //---- get the machine Id ----//
+    APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT,       //---- get the system option default
+    APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_PRM,           //---- get the system option from EEPROM ----//
+} t_eAPPSYS_FsmCfgSts;
 
 /* CAUTION : Automatic generated code section for Structure: Start */
 
@@ -60,7 +66,7 @@ static t_eCyclicModState g_ModuleState_ae[APPSYS_MODULE_NB];
 ///@brief Fast Task Function call 
 static t_cbAPPSYS_FastTask * g_ModFastTask_apcb[APPSYS_MODULE_NB];
 ///@brief App Sys module state
-static t_eCyclicModState g_AppSysModuleState_e = STATE_CYCLIC_PREOPE;
+static t_eCyclicModState g_AppSysModuleState_e = STATE_CYCLIC_CFG;
 /// @brief Cyclic Duration
 static t_uint32 g_CyclicDuration_u32 = (t_uint32)0;
 /// @brief Cpu load
@@ -76,6 +82,12 @@ static t_bool g_isFastTaskON_b = (t_bool)False;
 static t_uint16 g_mskFastTaskCall_u16 = (t_uint16)0; /**< to know the people to call */
 static t_bool g_lockAssert_b = (t_bool)False;
 static t_sAPPSYS_AssertInfo g_AssertInfo_s;
+
+
+//-------------- Machine System varaible -----------------//
+static t_uint8 g_MachSysOptValues_ua8[APPSYS_OPT_ID_NB];
+static t_eAPPSYS_MachineList g_MachineID_e;
+static t_eAPPSYS_FsmCfgSts g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
 //********************************************************************************
 //                      Local functions - Prototypes
 //********************************************************************************
@@ -85,6 +97,12 @@ static t_sAPPSYS_AssertInfo g_AssertInfo_s;
 *
 */
 static t_eReturnCode s_APPSYS_ResAlloc(void); 
+/**
+*
+*	@brief  Call driver cyclic function
+*
+*/
+static t_eReturnCode s_APPSYS_ConfigurationState();
 /**
 *
 *	@brief  Call driver cyclic function
@@ -209,6 +227,20 @@ void APPSYS_Cyclic(void)
      
     switch(g_AppSysModuleState_e)
     {
+        case STATE_CYCLIC_CFG:
+        {
+            Ret_e = s_APPSYS_ConfigurationState();
+
+            if(Ret_e == RC_OK)
+            {
+                g_AppSysModuleState_e = STATE_CYCLIC_PREOPE;
+            }
+            else if(Ret_e < RC_OK)
+            {
+                g_AppSysModuleState_e = STATE_CYCLIC_ERROR;
+            }
+        }
+        break;
         case STATE_CYCLIC_PREOPE:
         {/* In Preope Mode AppSys called every cycle and wait every module are ready for Ope Mode*/
             Ret_e = s_APPSYS_PreOperational();
@@ -233,7 +265,6 @@ void APPSYS_Cyclic(void)
         {
             break;
         }
-        case STATE_CYCLIC_CFG:
         case STATE_CYCLIC_WAITING:
         case STATE_CYCLIC_ERROR:
         default:
@@ -331,6 +362,37 @@ t_eReturnCode APPSYS_SetFastTaskState(t_eAppSys_ModuleList f_ModuleId_e,  t_eAPP
 
     return Ret_e;
 }
+
+/*********************************
+ * APPSYS_GetSysOption
+ *********************************/
+t_eReturnCode APPSYS_GetSysOption(t_eAPPSYS_SysOptionList f_OptionID_e, t_uint8 * f_OptVal_pu8)
+{
+    t_eReturnCode Ret_e;
+
+    if(f_OptionID_e >= APPSYS_OPT_ID_NB)
+    {
+        Ret_e = RC_ERROR_PARAM_INVALID;
+        ASSERT((t_uint16)0);
+    }
+    else if(f_OptVal_pu8 == (t_uint8 *)NULL)
+    {
+        Ret_e = RC_ERROR_PTR_NULL;
+        ASSERT((t_uint16)0);
+    }
+    else if((g_AppSysModuleState_e != STATE_CYCLIC_PREOPE)
+    &&     (g_AppSysModuleState_e != STATE_CYCLIC_OPE)) 
+    {
+        Ret_e = RC_WARNING_BUSY;
+    }
+    else
+    {
+        Ret_e = RC_OK;
+        *f_OptVal_pu8 = g_MachSysOptValues_ua8[f_OptionID_e];
+    }
+
+    return Ret_e;
+}
 //********************************************************************************
 //                      Local functions - Implementation
 //********************************************************************************
@@ -398,6 +460,79 @@ static t_eReturnCode s_APPSYS_ResAlloc(void)
 }
 
 /*********************************
+ * s_APPSYS_ConfigurationState
+ *********************************/
+static t_eReturnCode s_APPSYS_ConfigurationState()
+{
+    t_eReturnCode Ret_e;
+    t_uint8 idxSysOpt_u8;
+    t_uint16 sysOptValue_u16 = (t_uint16)0;
+
+    s_APPSYS_Set_ModulesCyclic();
+
+    switch(g_FsmCfgSts_e)
+    {
+        case APPSYS_FSM_CFGSTATE_GET_MACH:
+            Ret_e = APPSPM_GetParam(APPSPM_PRM_SYS_MACHINE_ID, &sysOptValue_u16);
+            if(Ret_e == RC_OK)
+            {
+                Ret_e = RC_WARNING_PENDING;
+                g_MachineID_e = (t_eAPPSYS_MachineList)sysOptValue_u16;
+                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT;
+            }
+            else if (Ret_e >= RC_OK) 
+            {
+                Ret_e = RC_WARNING_PENDING;
+            }
+        break;
+        case APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT:
+            for(idxSysOpt_u8 = (t_uint8)0 ; idxSysOpt_u8 < (t_uint8)APPSYS_OPT_ID_NB ; idxSysOpt_u8++)
+            {
+                g_MachSysOptValues_ua8[idxSysOpt_u8] = c_AppSys_MachOptCfg_ua8[g_MachineID_e][idxSysOpt_u8];
+            }
+            if(APPSYS_SYS_OPT_EEPROM_PARAM_ENABLE == TRUE)
+            {
+                Ret_e = RC_WARNING_PENDING;
+                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_PRM;
+            }
+            else 
+            {   
+                Ret_e = RC_WARNING_PENDING;
+                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
+            }
+        break;
+        case APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_PRM:
+            Ret_e = RC_OK;
+            for(idxSysOpt_u8 = (t_uint8)0 ; 
+            (idxSysOpt_u8 < (t_uint8)APPSYS_OPT_ID_NB) && (Ret_e == RC_OK) ; 
+            idxSysOpt_u8++)
+            {
+                Ret_e = APPSPM_GetParam(c_AppSys_SysOpt_ItemPrmID_ae[idxSysOpt_u8],
+                                        &sysOptValue_u16);
+                if(Ret_e == RC_OK)
+                {
+                    g_MachSysOptValues_ua8[idxSysOpt_u8] = (t_uint8)sysOptValue_u16;
+                }
+            }
+            if(Ret_e == RC_OK)
+            {
+                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
+            }
+            else if(Ret_e > RC_OK)
+            {
+                Ret_e = RC_WARNING_PENDING;
+            }
+            //--- else propagete error ----//
+        break;
+        default:
+            Ret_e = RC_ERROR_NOT_ALLOWED;
+        break;
+    }
+
+    return Ret_e;  
+}
+
+/*********************************
  * s_APPSYS_PreOperational
  *********************************/
 static t_eReturnCode s_APPSYS_PreOperational(void)
@@ -425,8 +560,8 @@ static t_eReturnCode s_APPSYS_PreOperational(void)
                 Ret_e = c_AppSys_ModuleFunc_apf[modIndex_u8].SetState_pcb(STATE_CYCLIC_PREOPE);
             }
         }
-        Ret_e = RC_OK;
         
+        Ret_e = RC_OK;        
     }
     else 
     {

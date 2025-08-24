@@ -109,9 +109,13 @@
     *	@brief  Add a Fast Task to be call every APPSYS_ELASPED_TIME_FASTTASK
     *
     */
-   t_eReturnCode APPSYS_SetFastTaskState(t_eAppSys_ModuleList f_ModuleId_e,  t_eAPPSYS_FastTaskState f_state_e);
-    
-
+    t_eReturnCode APPSYS_SetFastTaskState(t_eAppSys_ModuleList f_ModuleId_e,  t_eAPPSYS_FastTaskState f_state_e);
+    /**
+    *
+    *	@brief  
+    *
+    */
+    t_eReturnCode APPSYS_GetSysOption(t_eAPPSYS_SysOptionList f_OptionID_e, t_uint8 * f_OptVal_pu8);
 #endif // APP_SYS_H_INCLUDED           
 //************************************************************************************
 // End of File
