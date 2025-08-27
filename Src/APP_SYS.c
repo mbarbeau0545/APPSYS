@@ -497,7 +497,7 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
             }
             else 
             {   
-                Ret_e = RC_WARNING_PENDING;
+                Ret_e = RC_OK;
                 g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
             }
         break;
