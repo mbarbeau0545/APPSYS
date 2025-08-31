@@ -466,18 +466,18 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
 {
     t_eReturnCode Ret_e;
     t_uint8 idxSysOpt_u8;
-    t_uint16 sysOptValue_u16 = (t_uint16)0;
+    t_uAPPSPM_PrmValType sysOptValue_u = {.prmVal_u16 = 0};
 
     s_APPSYS_Set_ModulesCyclic();
 
     switch(g_FsmCfgSts_e)
     {
         case APPSYS_FSM_CFGSTATE_GET_MACH:
-            Ret_e = APPSPM_GetParam(APPSPM_PRM_SYS_MACHINE_ID, &sysOptValue_u16);
+            Ret_e = APPSPM_GetParam(APPSPM_PRM_SYS_MACHINE_ID, &sysOptValue_u);
             if(Ret_e == RC_OK)
             {
                 Ret_e = RC_WARNING_PENDING;
-                g_MachineID_e = (t_eAPPSYS_MachineList)sysOptValue_u16;
+                g_MachineID_e = (t_eAPPSYS_MachineList)sysOptValue_u.prmVal_u16;
                 g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT;
             }
             else if (Ret_e >= RC_OK) 
@@ -508,10 +508,10 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
             idxSysOpt_u8++)
             {
                 Ret_e = APPSPM_GetParam(c_AppSys_SysOpt_ItemPrmID_ae[idxSysOpt_u8],
-                                        &sysOptValue_u16);
+                                        &sysOptValue_u);
                 if(Ret_e == RC_OK)
                 {
-                    g_MachSysOptValues_ua8[idxSysOpt_u8] = (t_uint8)sysOptValue_u16;
+                    g_MachSysOptValues_ua8[idxSysOpt_u8] = (t_uint8)sysOptValue_u.prmVal_u16;
                 }
             }
             if(Ret_e == RC_OK)
