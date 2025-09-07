@@ -128,15 +128,6 @@ static void s_APPSYS_Set_ModulesCyclic();
 *
 */
 static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_uint8 f_InterruptLine_u8);
-/**
-*
-*	@brief  Software Diagnostic Status Callback
-*
-*/
-static void s_APPSYS_SoftDiagMngmt( t_eAPPSDM_DiagnosticItem f_item_e,
-                                    t_eAPPSDM_DiagnosticReport f_reportState_e,
-                                    t_uint16 f_debugInfo1_u16,
-                                    t_uint16 f_debugInfo2_u16);
 //****************************************************************************
 //                      Public functions - Implementation
 //********************************************************************************
@@ -194,11 +185,7 @@ void APPSYS_Init(void)
         Ret_e = FMKSRL_InitDrv( FMKSRL_DEBUG_SERIAL_LINE,
                                 SrlCfg_s,
                                 (t_cbFMKSRL_RcvMsgEvent *)NULL_FUNCTION,
-                                (t_cbFMKSRL_TransmitMsgEvent *)NULL_FUNCTION);
-        if(Ret_e == RC_OK)
-        {
-            Ret_e = APPSDM_AddCallbackEvnt(s_APPSYS_SoftDiagMngmt);
-        }        
+                                (t_cbFMKSRL_TransmitMsgEvent *)NULL_FUNCTION);  
     }
     //---- set fast tasl timer ope ----//
     if(Ret_e == RC_OK)
@@ -708,24 +695,6 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
     }
 
     return;
-}
-/*********************************
- * s_APPSYS_FastTask
- *********************************/
-static void s_APPSYS_SoftDiagMngmt( t_eAPPSDM_DiagnosticItem f_item_e,
-                                    t_eAPPSDM_DiagnosticReport f_reportState_e,
-                                    t_uint16 f_debugInfo1_u16,
-                                    t_uint16 f_debugInfo2_u16)
-{
-    t_uint32 currentTime;
-    FMKCPU_GetTick(&currentTime);
-
-    FMKSRL_LOG("[%d] : Diag Item %d, status : %d, debug1 : %d, debug2 : %d\r\n",
-                currentTime,
-                f_item_e,
-                f_reportState_e,
-                f_debugInfo1_u16,
-                f_debugInfo2_u16);
 }
 
 
