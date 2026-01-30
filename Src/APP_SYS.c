@@ -19,7 +19,7 @@
 #include "./APP_CFG/ConfigFiles/APPSYS_ConfigPrivate.h"
 #include "Library/SafeMem/SafeMem.h"
 #include "./APP_SYS.h"
-
+#include "APP_CFG/ConfigApp/SoftwareVersion.h"
 // ********************************************************************
 // *                      Defines
 // ********************************************************************
@@ -186,6 +186,10 @@ void APPSYS_Init(void)
                                 SrlCfg_s,
                                 (t_cbFMKSRL_RcvMsgEvent *)NULL_FUNCTION,
                                 (t_cbFMKSRL_TransmitMsgEvent *)NULL_FUNCTION);  
+    }
+    if(Ret_e == RC_OK)
+    {
+        FMKSRL_LOG("STM32 startup, version %d\r\n", SOFTWARE_VERSION);
     }
     //---- set fast tasl timer ope ----//
     if(Ret_e == RC_OK)
