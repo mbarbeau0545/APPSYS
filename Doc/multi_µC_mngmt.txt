@@ -1,0 +1,19 @@
+Pour pouvoir faire un software pour les 3,4 ECU qui va composer notre ROobo,
+On va les distinguer en leur appliquant une tension entre 0 et 3,3V chaque 500 ms determine un ECU différent 
+Au boot, APPSYS va lire la tension pour savoir quelle Id il est,
+APPSIG va demander quelle id il est pour faire ses callback à FMKCAN 
+une fois cela fait, il va attendre que les paramètres soit envoyées/ réçu via APPSIG
+ROS va envoyé les paramètres à APPSIG par can en prenant un identifiant CAN != pour chaque ECU 
+Chaque ECU va recevoir sa config via APPSIG, via APPSPM et APPSYS va pouvoir la lire
+Une fois qu'il l'a lu c'est la routine normal, il va juste survéiller que la tension est toujours la même 
+
+POur APPSIG, il s'occupera uniquement des msg que son ECU_ID gère
+- Dans tout les cas, les sensors et actuators ont un id définit, il ne faut pas 
+mélanger des actuators qui sont sur différent ECU dans un même msg,
+à part ça soit le msg sera reçu soit transmis  
+- on doit savoir si le message est handle par l'ecu ID 
+- on doit savoir si le message est reçu ou transmis ou aucun des deux 
+Donc la génération de code doit regarder les tags dans comment, si il n'y a rien
+on prend la valeur de direction, sinon on créer une liste avec les différents élément
+exemple : 0:SEND,1:RECEIVE,2:SENDRECEIVE
+

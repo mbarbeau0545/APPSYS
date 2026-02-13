@@ -41,7 +41,9 @@ typedef struct
 ///@brief FSM for Cfg state
 typedef enum 
 {
-    APPSYS_FSM_CFGSTATE_GET_MACH = 0,                   //---- get the machine Id ----//
+    APPSYS_FSM_CFGSTATE_GET_ECU_POS = 0,                //---- get ecu position for the first time ----//
+    APPSYS_FSM_CFGSTATE_WAIT_RCV_PRM,                   //---- get waiting receive param ---//
+    APPSYS_FSM_CFGSTATE_GET_MACH,                       //---- get the machine Id ----//
     APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT,       //---- get the system option default
     APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_PRM,           //---- get the system option from EEPROM ----//
 } t_eAPPSYS_FsmCfgSts;
@@ -87,7 +89,9 @@ static t_sAPPSYS_AssertInfo g_AssertInfo_s;
 //-------------- Machine System varaible -----------------//
 static t_uint8 g_MachSysOptValues_ua8[APPSYS_OPT_ID_NB];
 static t_eAPPSYS_MachineList g_MachineID_e;
-static t_eAPPSYS_FsmCfgSts g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
+static t_eAPPSYS_FsmCfgSts g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_ECU_POS;
+static t_eAPPSYS_EcuPos g_ecuPos_e = APPSYS_ECU_POS_NB;
+static t_bool g_isEcuPosValid_b = FALSE;
 //********************************************************************************
 //                      Local functions - Prototypes
 //********************************************************************************
@@ -108,13 +112,29 @@ static t_eReturnCode s_APPSYS_ConfigurationState();
 *	@brief  Call driver cyclic function
 *
 */
-static t_eReturnCode s_APPSYS_PreOperational();
+static t_eReturnCode s_APPSYS_Operational();
 /**
 *
 *	@brief  Call driver cyclic function
 *
 */
-static t_eReturnCode s_APPSYS_Operational();
+static t_eReturnCode s_APPSYS_UpdateEcuPos();
+/**
+*
+*	@brief  Call driver cyclic function
+*
+*/
+static t_eReturnCode s_APPSYS_ConvertAnaToEcuPos(t_float32 f_anaValue_f32, t_eAPPSYS_EcuPos * f_ecuPos_pe);
+/**
+*
+*	@brief  Call driver cyclic function
+*
+*/
+static void s_APPSYS_SigAnaCallback(t_eFMKIO_SigType f_sigType_e,
+                                    t_uint8 f_sigId_u8,
+                                    t_uint16 f_debugInfo1_u16, 
+                                    t_uint16 f_debugInfo2_u16);
+
 /**
 *
 *	@brief  Call driver cyclic function
@@ -189,6 +209,10 @@ void APPSYS_Init(void)
     }
     if(Ret_e == RC_OK)
     {
+        Ret_e = FMKIO_Set_InAnaSigCfg(APPSYS_IO_ANALOG_SIGNAL, s_APPSYS_SigAnaCallback);
+    }
+    if(Ret_e == RC_OK)
+    {
         FMKSRL_LOG("STM32 startup, version %d\r\n", SOFTWARE_VERSION);
     }
     //---- set fast tasl timer ope ----//
@@ -215,53 +239,76 @@ void APPSYS_Init(void)
 void APPSYS_Cyclic(void)
 {
     t_eReturnCode Ret_e = RC_OK;
-     
-    switch(g_AppSysModuleState_e)
-    {
-        case STATE_CYCLIC_CFG:
-        {
-            Ret_e = s_APPSYS_ConfigurationState();
+    t_uint32 currentCnt_u32 = 0;
+    static t_uint32 s_previousCnt_u32 = 0;
+    t_uint32 elapsedTime_u32 =  0;
 
-            if(Ret_e == RC_OK)
-            {
-                g_AppSysModuleState_e = STATE_CYCLIC_PREOPE;
-            }
-            else if(Ret_e < RC_OK)
-            {
-                g_AppSysModuleState_e = STATE_CYCLIC_ERROR;
-            }
-        }
-        break;
-        case STATE_CYCLIC_PREOPE:
-        {/* In Preope Mode AppSys called every cycle and wait every module are ready for Ope Mode*/
-            Ret_e = s_APPSYS_PreOperational();
-            //---------Update Module State------------//
-            if(Ret_e == RC_OK)
-            {
-                g_AppSysModuleState_e = STATE_CYCLIC_OPE; 
-            }
-            else if(Ret_e < RC_OK)
-            {
-                ASSERT((t_uint16)Ret_e);
-                g_AppSysModuleState_e = STATE_CYCLIC_ERROR;
-            }
-            break;
-        }
-        case STATE_CYCLIC_OPE:
+    FMKCPU_GetTick(&currentCnt_u32);
+
+    elapsedTime_u32 = (t_uint32)(currentCnt_u32 - s_previousCnt_u32);
+    if((elapsedTime_u32) > APPSYS_ELAPSED_TIME_CYCLIC)
+    {
+        // reset whatchdog for fmk/app cycle
+        s_previousCnt_u32 = currentCnt_u32;
+
+        switch(g_AppSysModuleState_e)
         {
-            Ret_e = s_APPSYS_Operational();
+            case STATE_CYCLIC_CFG:
+            {
+                Ret_e = s_APPSYS_ConfigurationState();
+
+                if(Ret_e == RC_OK)
+                {
+                    g_AppSysModuleState_e = STATE_CYCLIC_OPE;
+                }
+                else if(Ret_e < RC_OK)
+                {
+                    g_AppSysModuleState_e = STATE_CYCLIC_ERROR;
+                }
+            }
             break;
+            case STATE_CYCLIC_OPE:
+            {
+                Ret_e = s_APPSYS_Operational();
+                break;
+            }
+            case STATE_CYCLIC_BUSY:
+            {
+                break;
+            }
+            case STATE_CYCLIC_PREOPE:
+            case STATE_CYCLIC_ERROR:
+            default:
+            {
+                // Nothing to do infinite loop
+                break;
+            }
         }
-        case STATE_CYCLIC_BUSY:
+
+        FMKCPU_GetTick(&currentCnt_u32);
+        g_CyclicDuration_u32 = (t_uint32)(currentCnt_u32 - s_previousCnt_u32);
+        g_CpuLoad_f32 = (t_float32)(g_CyclicDuration_u32 / APPSYS_ELAPSED_TIME_CYCLIC);
+
+        if(g_CyclicDuration_u32 > APPSYS_ELAPSED_TIME_CYCLIC)
         {
-            break;
+            APPSDM_ReportDiagEvnt(   APPSDM_DIAG_ITEM_APP_CYCLIC_TIMEOUT,
+                                    APPSDM_DIAG_ITEM_REPORT_FAIL,
+                                    Mu16ExtractByte1from32(g_CyclicDuration_u32),
+                                    Mu16ExtractByte0from32(g_CyclicDuration_u32));
         }
-        case STATE_CYCLIC_WAITING:
-        case STATE_CYCLIC_ERROR:
-        default:
+        else
         {
-            // Nothing to do infinite loop
-            break;
+            APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APP_CYCLIC_TIMEOUT,
+                                    APPSDM_DIAG_ITEM_REPORT_PASS,
+                                    (t_uint16)0,
+                                    (t_uint16)0);
+        }
+        //---- send signal g_cyclic_duration ----//
+        Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_CYCLIC_DURATION, (t_float32)g_CyclicDuration_u32);
+
+        if(Ret_e == RC_OK)
+        {
+            Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_FASTTASKDURATION, (t_float32)g_fastTaskDuration_u32);
         }
     }
 
@@ -384,6 +431,39 @@ t_eReturnCode APPSYS_GetSysOption(t_eAPPSYS_SysOptionList f_OptionID_e, t_uint8 
 
     return Ret_e;
 }
+
+/*********************************
+ * APPSYS_GetEcuPosition
+ *********************************/
+t_eReturnCode APPSYS_GetEcuPosition(t_eAPPSYS_EcuPos * f_ecuPos_pe)
+{
+    t_eReturnCode Ret_e;
+
+    if(f_ecuPos_pe == NULL)
+    {
+        Ret_e = RC_ERROR_PTR_NULL;
+        ASSERT((t_uint16)0);
+    }
+    else if(g_isEcuPosValid_b == FALSE)
+    {
+        Ret_e = RC_WARNING_BUSY;
+    }
+    else 
+    {
+        if(g_ecuPos_e != APPSYS_ECU_POS_NB)
+        {
+            Ret_e = RC_OK;
+            *f_ecuPos_pe = g_ecuPos_e;
+        }
+        else 
+        {
+            *f_ecuPos_pe = APPSYS_ECU_POS_NB;
+            Ret_e = RC_WARNING_BUSY;
+        }
+    }
+
+    return Ret_e;
+}
 //********************************************************************************
 //                      Local functions - Implementation
 //********************************************************************************
@@ -456,24 +536,62 @@ static t_eReturnCode s_APPSYS_ResAlloc(void)
 static t_eReturnCode s_APPSYS_ConfigurationState()
 {
     t_eReturnCode Ret_e;
+    t_uint32 lastTime_u32 = (t_uint32)0;
+    t_uint32 currentTime_u32;
     t_uint8 idxSysOpt_u8;
     t_uAPPSPM_PrmValType sysOptValue_u = {.prmVal_u16 = 0};
 
     s_APPSYS_Set_ModulesCyclic();
+    FMKCPU_GetTick(&currentTime_u32);
 
     switch(g_FsmCfgSts_e)
     {
-        case APPSYS_FSM_CFGSTATE_GET_MACH:
-            Ret_e = APPSPM_GetParam(APPSPM_PRM_SYS_MACHINE_ID, &sysOptValue_u);
+        case APPSYS_FSM_CFGSTATE_GET_ECU_POS:
+            Ret_e = s_APPSYS_UpdateEcuPos();
             if(Ret_e == RC_OK)
             {
                 Ret_e = RC_WARNING_PENDING;
-                g_MachineID_e = (t_eAPPSYS_MachineList)sysOptValue_u.prmVal_u16;
-                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT;
+                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_WAIT_RCV_PRM;
             }
-            else if (Ret_e >= RC_OK) 
+            else if((Ret_e != RC_WARNING_BUSY)
+            &&      (Ret_e != RC_WARNING_PENDING))
             {
+                g_AppSysModuleState_e = STATE_CYCLIC_ERROR;
+            }
+            else if(Ret_e == RC_WARNING_NO_OPERATION)
+            {
+                Ret_e = RC_WARNING_INIT_PROBLEM;
+            }
+            // else propagate retcode 
+        break;
+        case APPSYS_FSM_CFGSTATE_WAIT_RCV_PRM:
+            if((currentTime_u32 - lastTime_u32) > APPSYS_WAIT_PRM_TIMEOUT)
+            {
+                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
+            }
+            Ret_e = RC_WARNING_PENDING;
+        break;
+        case APPSYS_FSM_CFGSTATE_GET_MACH:
+            if(APPSYS_SYS_OPT_EEPROM_PARAM_ENABLE == TRUE)
+            {
+                Ret_e = APPSPM_GetParam(APPSPM_PRM_SYS_MACHINE_ID, &sysOptValue_u);
+                if(Ret_e == RC_OK)
+                {
+                    Ret_e = RC_WARNING_PENDING;
+                    g_MachineID_e = (t_eAPPSYS_MachineList)sysOptValue_u.prmVal_u16;
+                    g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT;
+                }
+                else if (Ret_e >= RC_OK) 
+                {
+                    Ret_e = RC_WARNING_PENDING;
+                }
+            }
+            else
+            {
+                //---- machine id based on ecu position ----//
                 Ret_e = RC_WARNING_PENDING;
+                g_MachineID_e = (t_eAPPSYS_MachineList)((t_uint8)g_ecuPos_e);
+                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT;
             }
         break;
         case APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT:
@@ -524,57 +642,14 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
 }
 
 /*********************************
- * s_APPSYS_PreOperational
- *********************************/
-static t_eReturnCode s_APPSYS_PreOperational(void)
-{
-    t_eReturnCode Ret_e = RC_OK;
-    t_uint8 modIndex_u8;
-    t_uint8 ModuleInitCnt_u8 = 0;
-
-    s_APPSYS_Set_ModulesCyclic();
-
-    for(modIndex_u8 = (t_uint8)0 ; (modIndex_u8 <  (t_uint8)APPSYS_MODULE_NB) && (Ret_e == RC_OK) ; modIndex_u8++)
-    {
-        if(g_ModuleState_ae[modIndex_u8] == STATE_CYCLIC_WAITING)
-        {
-            ModuleInitCnt_u8 += 1;
-        }
-    }
-    
-    if(ModuleInitCnt_u8 >= (t_uint8)APPSYS_MODULE_NB)
-    {// set the all state module to pre-ope
-        for(modIndex_u8 = (t_uint8)0 ; (modIndex_u8 <  (t_uint8)APPSYS_MODULE_NB) && (Ret_e == RC_OK) ; modIndex_u8++)
-        {
-            if(g_ModuleState_ae[modIndex_u8] == STATE_CYCLIC_WAITING)
-            {
-                Ret_e = c_AppSys_ModuleFunc_apf[modIndex_u8].SetState_pcb(STATE_CYCLIC_PREOPE);
-            }
-        }
-        
-        Ret_e = RC_OK;        
-    }
-    else 
-    {
-        Ret_e = RC_WARNING_PENDING;
-    }
-    return Ret_e;
-}
-
-/*********************************
  * s_APPSYS_Operational
  *********************************/
 static t_eReturnCode s_APPSYS_Operational(void)
 {
-    t_eReturnCode Ret_e = RC_OK;
-    t_uint32 currentCnt_u32 = 0;
-    static t_uint32 s_previousCnt_u32 = 0;
-    t_uint32 elapsedTime_u32 =  0;
+    t_eReturnCode Ret_e = RC_OK;    
     t_bool isFastTaskON_b = False;
     t_uint16 mskfastTask_u16 = (t_uint16)0;
 
-    FMKCPU_GetTick(&currentCnt_u32);
-    
     Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTask_u16, sizeof(t_uint16));
     if(Ret_e ==  RC_OK)
     {
@@ -582,40 +657,11 @@ static t_eReturnCode s_APPSYS_Operational(void)
     }
     if(Ret_e == RC_OK)
     {
-        elapsedTime_u32 = (t_uint32)(currentCnt_u32 - s_previousCnt_u32);
-        if((elapsedTime_u32) > APPSYS_ELAPSED_TIME_CYCLIC)
-        {
-            // reset whatchdog for fmk/app cycle
-            s_previousCnt_u32 = currentCnt_u32;
-            s_APPSYS_Set_ModulesCyclic();
-
-            FMKCPU_GetTick(&currentCnt_u32); 
-            g_CyclicDuration_u32 = (t_uint32)(currentCnt_u32 - s_previousCnt_u32);
-            g_CpuLoad_f32 = (t_float32)(g_CyclicDuration_u32 / APPSYS_ELAPSED_TIME_CYCLIC);
-
-            if(g_CyclicDuration_u32 > APPSYS_ELAPSED_TIME_CYCLIC)
-            {
-               APPSDM_ReportDiagEvnt(   APPSDM_DIAG_ITEM_APP_CYCLIC_TIMEOUT,
-                                        APPSDM_DIAG_ITEM_REPORT_FAIL,
-                                        Mu16ExtractByte1from32(g_CyclicDuration_u32),
-                                        Mu16ExtractByte0from32(g_CyclicDuration_u32));
-            }
-            else
-            {
-                APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APP_CYCLIC_TIMEOUT,
-                                        APPSDM_DIAG_ITEM_REPORT_PASS,
-                                        (t_uint16)0,
-                                        (t_uint16)0);
-            }
-            //---- send signal g_cyclic_duration ----//
-            Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_CYCLIC_DURATION, (t_float32)g_CyclicDuration_u32);
-
-            if(Ret_e == RC_OK)
-            {
-                Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_FASTTASKDURATION, (t_float32)g_fastTaskDuration_u32);
-            }
-            
-        }
+        Ret_e = s_APPSYS_UpdateEcuPos();
+    }
+    if(Ret_e >= RC_OK)
+    {       
+        s_APPSYS_Set_ModulesCyclic();
     }
     //---- fast task managment ----//
     if((mskfastTask_u16 != (t_uint16)0)
@@ -629,6 +675,98 @@ static t_eReturnCode s_APPSYS_Operational(void)
             Ret_e = SMB_Write(&g_sfbk_isFastTaskOn_s, &isFastTaskON_b, sizeof(t_bool));
             //---- ASSERTION already deal upon state machine function ----//
         }
+    }
+    
+    return Ret_e;
+}
+
+/*********************************
+ * s_APPSYS_UpdateEcuPos
+ *********************************/
+static t_eReturnCode s_APPSYS_UpdateEcuPos(void)
+{
+    t_eReturnCode Ret_e = RC_OK; 
+    t_float32 anaValue_f32;
+    t_eAPPSYS_EcuPos ecuPosition_e = APPSYS_ECU_POS_NB;
+
+    Ret_e = FMKIO_Get_InAnaSigValue(APPSYS_IO_ANALOG_SIGNAL, &anaValue_f32);
+
+    if(Ret_e == RC_OK)
+    {
+        Ret_e = s_APPSYS_ConvertAnaToEcuPos(anaValue_f32, &ecuPosition_e);
+
+        if(Ret_e == RC_OK)
+        {
+            //--- first time ecu is valid ----//
+            if(g_isEcuPosValid_b == FALSE)
+            {
+                g_isEcuPosValid_b = TRUE;
+                g_ecuPos_e = ecuPosition_e;
+            }
+            else 
+            {
+                //---- if a changement of position occured ----//
+                if(ecuPosition_e != g_ecuPos_e)
+                {
+                    APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
+                                            APPSDM_DIAG_ITEM_REPORT_FAIL,
+                                            anaValue_f32,
+                                            (t_uint16)0);
+                }
+            }
+        }
+        else 
+        {
+            g_ecuPos_e = APPSYS_ECU_POS_NB;
+            g_isEcuPosValid_b = FALSE;
+            APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
+                                    APPSDM_DIAG_ITEM_REPORT_FAIL,
+                                    anaValue_f32,
+                                    (t_uint16)0);
+        }
+    }
+    else if(Ret_e != RC_WARNING_BUSY)
+    {
+        g_isEcuPosValid_b = FALSE;
+        APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
+                                APPSDM_DIAG_ITEM_REPORT_FAIL,
+                                Ret_e,
+                                (t_uint16)0);
+    }
+
+    return Ret_e;
+}
+
+/*********************************
+ * s_APPSYS_ConvertAnaToEcuPos
+ *********************************/
+static t_eReturnCode s_APPSYS_ConvertAnaToEcuPos(t_float32 f_anaValue_f32, t_eAPPSYS_EcuPos * f_ecuPos_pe)
+{
+    t_eReturnCode Ret_e = RC_WARNING_NO_OPERATION;
+    t_uint8 idxAnaRange_u8;
+
+    for(idxAnaRange_u8 = (t_uint8)0 ; idxAnaRange_u8 < (t_uint8)APPSYS_ECU_POS_MAX ; idxAnaRange_u8++)
+    {
+        if((f_anaValue_f32 >= c_EcuPosAnaRange_as[idxAnaRange_u8].min_f32)
+        && (f_anaValue_f32 <= c_EcuPosAnaRange_as[idxAnaRange_u8].max_f32))
+        {
+            if(idxAnaRange_u8 >= APPSYS_ECU_POS_NB)
+            {
+                Ret_e = RC_ERROR_WRONG_RESULT;
+                ASSERT((t_uint16)idxAnaRange_u8);
+                break;
+            }
+            else 
+            {
+                *f_ecuPos_pe = (t_eAPPSYS_EcuPos)idxAnaRange_u8;
+                Ret_e = RC_OK;
+                break;
+            }
+        }
+    }
+    if(Ret_e == RC_WARNING_NO_OPERATION)
+    {
+        ASSERT((t_uint16)0);
     }
     
     return Ret_e;
@@ -701,7 +839,27 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
     return;
 }
 
-
+/*********************************
+ * s_APPSYS_SigAnaCallback
+ *********************************/
+static void s_APPSYS_SigAnaCallback(t_eFMKIO_SigType f_sigType_e,
+                                    t_uint8 f_sigId_u8,
+                                    t_uint16 f_debugInfo1_u16, 
+                                    t_uint16 f_debugInfo2_u16)
+{
+    if((f_sigType_e == FMKIO_SIGTYPE_INPUT_ANA)
+    && (f_sigId_u8 == (t_uint8)APPSYS_IO_ANALOG_SIGNAL))
+    {
+        APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
+                                APPSDM_DIAG_ITEM_REPORT_FAIL,
+                                f_debugInfo1_u16,
+                                f_debugInfo2_u16);
+    }
+    else 
+    {
+        ASSERT((t_uint16)f_sigType_e);
+    }
+}
 //************************************************************************************
 // End of File
 //************************************************************************************
