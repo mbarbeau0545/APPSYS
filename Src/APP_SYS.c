@@ -209,7 +209,10 @@ void APPSYS_Init(void)
     }
     if(Ret_e == RC_OK)
     {
-        Ret_e = FMKIO_Set_InAnaSigCfg(APPSYS_IO_ANALOG_SIGNAL, s_APPSYS_SigAnaCallback);
+        Ret_e = FMKIO_Set_InAnaSigCfg(  APPSYS_IO_ANALOG_SIGNAL,
+                                        NULL,
+                                        FALSE,
+                                        s_APPSYS_SigAnaCallback);
     }
     if(Ret_e == RC_OK)
     {
@@ -242,12 +245,27 @@ void APPSYS_Cyclic(void)
     t_uint32 currentCnt_u32 = 0;
     static t_uint32 s_previousCnt_u32 = 0;
     t_uint32 elapsedTime_u32 =  0;
+    t_bool isFastTaskON_b = False;
+    t_uint16 mskfastTask_u16 = (t_uint16)0;
 
     FMKCPU_GetTick(&currentCnt_u32);
 
     elapsedTime_u32 = (t_uint32)(currentCnt_u32 - s_previousCnt_u32);
     if((elapsedTime_u32) > APPSYS_ELAPSED_TIME_CYCLIC)
     {
+        Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTask_u16, sizeof(t_uint16));
+        if(Ret_e ==  RC_OK)
+        {
+            Ret_e = SMB_Read(&g_sfbk_isFastTaskOn_s, &isFastTaskON_b, sizeof(t_bool));
+        }
+        if(Ret_e == RC_OK)
+        {
+            Ret_e = s_APPSYS_UpdateEcuPos();
+        }
+        if(Ret_e >= RC_OK)
+        {       
+            s_APPSYS_Set_ModulesCyclic();
+        }
         // reset whatchdog for fmk/app cycle
         s_previousCnt_u32 = currentCnt_u32;
 
@@ -284,7 +302,22 @@ void APPSYS_Cyclic(void)
                 break;
             }
         }
+        
+        //---- fast task managment ----//
+        if((mskfastTask_u16 != (t_uint16)0)
+        && (isFastTaskON_b == (t_bool)FALSE))
+        {
+            Ret_e = FMKTIM_Set_EvntLineState(   APPSYS_ITLINE_FASTTASK,
+                                                FMKTIM_EVNT_OPE_START_TIMER);
+            if(Ret_e == RC_OK)
+            {
+                isFastTaskON_b = TRUE;
+                Ret_e = SMB_Write(&g_sfbk_isFastTaskOn_s, &isFastTaskON_b, sizeof(t_bool));
+                //---- ASSERTION already deal upon state machine function ----//
+            }
+        }
 
+        //---- debug managment ----//
         FMKCPU_GetTick(&currentCnt_u32);
         g_CyclicDuration_u32 = (t_uint32)(currentCnt_u32 - s_previousCnt_u32);
         g_CpuLoad_f32 = (t_float32)(g_CyclicDuration_u32 / APPSYS_ELAPSED_TIME_CYCLIC);
@@ -304,12 +337,9 @@ void APPSYS_Cyclic(void)
                                     (t_uint16)0);
         }
         //---- send signal g_cyclic_duration ----//
-        Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_CYCLIC_DURATION, (t_float32)g_CyclicDuration_u32);
-
-        if(Ret_e == RC_OK)
-        {
-            Ret_e = APPSIG_SetSignalValue(APPSIG_SIGNAL_FASTTASKDURATION, (t_float32)g_fastTaskDuration_u32);
-        }
+        (void)APPSIG_SetSignalValue(APPSIG_SIGNAL_CYCLIC_DURATION, (t_float32)g_CyclicDuration_u32);
+        (void)APPSIG_SetSignalValue(APPSIG_SIGNAL_FASTTASKDURATION, (t_float32)g_fastTaskDuration_u32);
+        (void)APPSIG_SetSignalValue(APPSIG_SIGNAL_APPSYS_MODSTATE, (t_float32)g_AppSysModuleState_e);
     }
 
     return;
@@ -536,42 +566,40 @@ static t_eReturnCode s_APPSYS_ResAlloc(void)
 static t_eReturnCode s_APPSYS_ConfigurationState()
 {
     t_eReturnCode Ret_e;
-    t_uint32 lastTime_u32 = (t_uint32)0;
-    t_uint32 currentTime_u32;
-    t_uint8 idxSysOpt_u8;
-    t_uAPPSPM_PrmValType sysOptValue_u = {.prmVal_u16 = 0};
-
-    s_APPSYS_Set_ModulesCyclic();
-    FMKCPU_GetTick(&currentTime_u32);
 
     switch(g_FsmCfgSts_e)
     {
         case APPSYS_FSM_CFGSTATE_GET_ECU_POS:
-            Ret_e = s_APPSYS_UpdateEcuPos();
-            if(Ret_e == RC_OK)
+            if(g_ecuPos_e < APPSYS_ECU_POS_NB)
             {
-                Ret_e = RC_WARNING_PENDING;
                 g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_WAIT_RCV_PRM;
             }
-            else if((Ret_e != RC_WARNING_BUSY)
-            &&      (Ret_e != RC_WARNING_PENDING))
-            {
-                g_AppSysModuleState_e = STATE_CYCLIC_ERROR;
-            }
-            else if(Ret_e == RC_WARNING_NO_OPERATION)
-            {
-                Ret_e = RC_WARNING_INIT_PROBLEM;
-            }
+            Ret_e = RC_WARNING_PENDING;
             // else propagate retcode 
         break;
         case APPSYS_FSM_CFGSTATE_WAIT_RCV_PRM:
-            if((currentTime_u32 - lastTime_u32) > APPSYS_WAIT_PRM_TIMEOUT)
+        {
+            t_float32 isFlagRcv_f32;
+            if(APPSYS_SYS_OPT_EEPROM_PARAM_ENABLE == TRUE)
+            {
+                Ret_e = APPSIG_GetSignalValue(APPSYS_FLAG_PRM_RCV_STATUS, &isFlagRcv_f32);
+                if((Ret_e == RC_OK)
+                && (TRUE == (t_bool)isFlagRcv_f32))
+                {
+                    g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
+                }
+            }
+            else 
             {
                 g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
             }
+
             Ret_e = RC_WARNING_PENDING;
+        }
         break;
         case APPSYS_FSM_CFGSTATE_GET_MACH:
+        {
+            t_uAPPSPM_PrmValType sysOptValue_u = {.prmVal_u16 = 0};
             if(APPSYS_SYS_OPT_EEPROM_PARAM_ENABLE == TRUE)
             {
                 Ret_e = APPSPM_GetParam(APPSPM_PRM_SYS_MACHINE_ID, &sysOptValue_u);
@@ -593,8 +621,12 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
                 g_MachineID_e = (t_eAPPSYS_MachineList)((t_uint8)g_ecuPos_e);
                 g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT;
             }
+        }
         break;
         case APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT:
+        {
+            t_uint8 idxSysOpt_u8;
+
             for(idxSysOpt_u8 = (t_uint8)0 ; idxSysOpt_u8 < (t_uint8)APPSYS_OPT_ID_NB ; idxSysOpt_u8++)
             {
                 g_MachSysOptValues_ua8[idxSysOpt_u8] = c_AppSys_MachOptCfg_ua8[g_MachineID_e][idxSysOpt_u8];
@@ -609,9 +641,14 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
                 Ret_e = RC_OK;
                 g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
             }
+        }
         break;
         case APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_PRM:
+        {
+            t_uint8 idxSysOpt_u8;
+            t_uAPPSPM_PrmValType sysOptValue_u = {.prmVal_u16 = 0};
             Ret_e = RC_OK;
+
             for(idxSysOpt_u8 = (t_uint8)0 ; 
             (idxSysOpt_u8 < (t_uint8)APPSYS_OPT_ID_NB) && (Ret_e == RC_OK) ; 
             idxSysOpt_u8++)
@@ -632,7 +669,8 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
                 Ret_e = RC_WARNING_PENDING;
             }
             //--- else propagete error ----//
-        break;
+            break;
+        }
         default:
             Ret_e = RC_ERROR_NOT_ALLOWED;
         break;
@@ -646,36 +684,7 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
  *********************************/
 static t_eReturnCode s_APPSYS_Operational(void)
 {
-    t_eReturnCode Ret_e = RC_OK;    
-    t_bool isFastTaskON_b = False;
-    t_uint16 mskfastTask_u16 = (t_uint16)0;
-
-    Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTask_u16, sizeof(t_uint16));
-    if(Ret_e ==  RC_OK)
-    {
-        Ret_e = SMB_Read(&g_sfbk_isFastTaskOn_s, &isFastTaskON_b, sizeof(t_bool));
-    }
-    if(Ret_e == RC_OK)
-    {
-        Ret_e = s_APPSYS_UpdateEcuPos();
-    }
-    if(Ret_e >= RC_OK)
-    {       
-        s_APPSYS_Set_ModulesCyclic();
-    }
-    //---- fast task managment ----//
-    if((mskfastTask_u16 != (t_uint16)0)
-    && (isFastTaskON_b == (t_bool)FALSE))
-    {
-        Ret_e = FMKTIM_Set_EvntLineState(   APPSYS_ITLINE_FASTTASK,
-                                            FMKTIM_EVNT_OPE_START_TIMER);
-        if(Ret_e == RC_OK)
-        {
-            isFastTaskON_b = TRUE;
-            Ret_e = SMB_Write(&g_sfbk_isFastTaskOn_s, &isFastTaskON_b, sizeof(t_bool));
-            //---- ASSERTION already deal upon state machine function ----//
-        }
-    }
+    t_eReturnCode Ret_e = RC_OK;
     
     return Ret_e;
 }
