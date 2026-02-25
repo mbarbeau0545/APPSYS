@@ -722,7 +722,14 @@ static t_eReturnCode s_APPSYS_UpdateEcuPos(void)
                                             anaValue_f32,
                                             (t_uint16)0);
                 }
-            }
+                else 
+                {
+                    APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
+                                            APPSDM_DIAG_ITEM_REPORT_PASS,
+                                            (t_uint16)0,
+                                            (t_uint16)0);
+                }
+            }            
         }
         else 
         {
