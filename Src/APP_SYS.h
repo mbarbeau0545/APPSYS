@@ -122,6 +122,12 @@
     *	@brief  
     *
     */
+    t_eReturnCode APPSYS_SetSysOption(t_eAPPSYS_SysOptionList f_OptionID_e, t_uint8 f_OptVal_u8);
+    /**
+    *
+    *	@brief  
+    *
+    */
     t_eReturnCode APPSYS_GetEcuPosition(t_eAPPSYS_EcuPos * f_ecuPos_pe);
 
 #endif // APP_SYS_H_INCLUDED           

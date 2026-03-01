@@ -463,6 +463,31 @@ t_eReturnCode APPSYS_GetSysOption(t_eAPPSYS_SysOptionList f_OptionID_e, t_uint8 
 }
 
 /*********************************
+ * APPSYS_SetSysOption
+ *********************************/
+t_eReturnCode APPSYS_SetSysOption(t_eAPPSYS_SysOptionList f_OptionID_e, t_uint8 f_OptVal_u8)
+{
+    t_eReturnCode Ret_e;
+
+    if(f_OptionID_e >= APPSYS_OPT_ID_NB)
+    {
+        Ret_e = RC_ERROR_PARAM_INVALID;
+        ASSERT((t_uint16)0);
+    }
+    else if((g_AppSysModuleState_e != STATE_CYCLIC_PREOPE)
+    &&     (g_AppSysModuleState_e != STATE_CYCLIC_OPE)) 
+    {
+        Ret_e = RC_WARNING_BUSY;
+    }
+    else 
+    {
+        g_MachSysOptValues_ua8[f_OptionID_e] = f_OptVal_u8;
+        Ret_e = RC_OK;
+    }
+
+    return Ret_e;
+}
+/*********************************
  * APPSYS_GetEcuPosition
  *********************************/
 t_eReturnCode APPSYS_GetEcuPosition(t_eAPPSYS_EcuPos * f_ecuPos_pe)
