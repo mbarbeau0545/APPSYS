@@ -736,6 +736,7 @@ static t_eReturnCode s_APPSYS_UpdateEcuPos(void)
             {
                 g_isEcuPosValid_b = TRUE;
                 g_ecuPos_e = ecuPosition_e;
+                FMKSRL_LOG("Ecu Position -> %d", (t_uint16)g_ecuPos_e);
             }
             else 
             {
@@ -872,6 +873,14 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
                                             APPSDM_DIAG_ITEM_REPORT_FAIL,
                                             Mu16ExtractByte1from32(g_fastTaskDuration_u32),
                                             Mu16ExtractByte0from32(g_fastTaskDuration_u32));
+                }
+                else 
+                {
+                    APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APP_FASTTASK_TIMEOUT,
+                                            APPSDM_DIAG_ITEM_REPORT_PASS,
+                                            (t_uint16)0,
+                                            (t_uint16)0);
+
                 }
             }
         }
