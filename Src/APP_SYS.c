@@ -23,7 +23,7 @@
 // ********************************************************************
 // *                      Defines
 // ********************************************************************
-#define APPSYS_FILE_NAME_LEN ((t_uint8)64)
+#define APPSYS_FILE_NAME_LEN ((t_uint8)96)
 #define APPSYS_SAFE_BLOCK_MAX_ATTEMPT ((t_uint8)4)
 // ********************************************************************
 // *                      Types
@@ -736,12 +736,14 @@ static t_eReturnCode s_APPSYS_UpdateEcuPos(void)
             {
                 g_isEcuPosValid_b = TRUE;
                 g_ecuPos_e = ecuPosition_e;
+                FMKSRL_LOG("Ecu Position -> %d\r\n", (t_uint16)g_ecuPos_e);
             }
             else 
             {
                 //---- if a changement of position occured ----//
                 if(ecuPosition_e != g_ecuPos_e)
                 {
+                    g_isEcuPosValid_b = FALSE;
                     APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
                                             APPSDM_DIAG_ITEM_REPORT_FAIL,
                                             anaValue_f32,
