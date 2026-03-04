@@ -177,7 +177,7 @@ void APPSYS_Init(void)
     }
     if(Ret_e == RC_OK)
     {
-        for(modIndex_u8 = (t_uint8)0 ; (modIndex_u8 < APPSYS_MODULE_NB) ; modIndex_u8++)
+        for(modIndex_u8 = (t_uint8)0 ; (modIndex_u8 < APPSYS_MODULE_NB) && (Ret_e == RC_OK); modIndex_u8++)
         {
             g_ModFastTask_apcb[modIndex_u8] = NULL_FUNCTION;
             Ret_e = c_AppSys_ModuleFunc_apf[modIndex_u8].Init_pcb();
