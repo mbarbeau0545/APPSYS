@@ -736,7 +736,7 @@ static t_eReturnCode s_APPSYS_UpdateEcuPos(void)
             {
                 g_isEcuPosValid_b = TRUE;
                 g_ecuPos_e = ecuPosition_e;
-                FMKSRL_LOG("Ecu Position -> %d", (t_uint16)g_ecuPos_e);
+                FMKSRL_LOG("Ecu Position -> %d\r\n", (t_uint16)g_ecuPos_e);
             }
             else 
             {
