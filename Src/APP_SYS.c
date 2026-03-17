@@ -625,7 +625,7 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
         case APPSYS_FSM_CFGSTATE_GET_MACH:
         {
             t_uAPPSPM_PrmValType sysOptValue_u = {.prmVal_u16 = 0};
-            if(APPSYS_SYS_OPT_EEPROM_PARAM_ENABLE == TRUE)
+            if(APPSYS_SYS_MACH_BASED_ON_PRM == TRUE)
             {
                 Ret_e = APPSPM_GetParam(APPSPM_PRM_SYS_MACHINE_ID, &sysOptValue_u);
                 if(Ret_e == RC_OK)
