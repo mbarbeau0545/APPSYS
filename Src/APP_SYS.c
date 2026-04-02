@@ -600,12 +600,11 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
                 g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_WAIT_RCV_PRM;
             }
             Ret_e = RC_WARNING_PENDING;
-            // else propagate retcode 
         break;
         case APPSYS_FSM_CFGSTATE_WAIT_RCV_PRM:
         {
             t_float32 isFlagRcv_f32;
-            if(APPSYS_SYS_OPT_EEPROM_PARAM_ENABLE == TRUE)
+            if(APPSYS_EEPROM_PARAM_ENABLE == TRUE)
             {
                 Ret_e = APPSIG_GetSignalValue(APPSYS_FLAG_PRM_RCV_STATUS, &isFlagRcv_f32);
                 if((Ret_e == RC_OK)
@@ -625,7 +624,8 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
         case APPSYS_FSM_CFGSTATE_GET_MACH:
         {
             t_uAPPSPM_PrmValType sysOptValue_u = {.prmVal_u16 = 0};
-            if(APPSYS_SYS_MACH_BASED_ON_PRM == TRUE)
+            if((APPSYS_EEPROM_PARAM_ENABLE == TRUE)
+            && (APPSYS_SYS_MACH_BASED_ON_PRM == TRUE))
             {
                 Ret_e = APPSPM_GetParam(APPSPM_PRM_SYS_MACHINE_ID, &sysOptValue_u);
                 if(Ret_e == RC_OK)
@@ -656,7 +656,8 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
             {
                 g_MachSysOptValues_ua8[idxSysOpt_u8] = c_AppSys_MachOptCfg_ua8[g_MachineID_e][idxSysOpt_u8];
             }
-            if(APPSYS_SYS_OPT_EEPROM_PARAM_ENABLE == TRUE)
+            if((APPSYS_EEPROM_PARAM_ENABLE == TRUE)
+            && (APPSYS_SYS_MACH_BASED_ON_PRM == TRUE))
             {
                 Ret_e = RC_WARNING_PENDING;
                 g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_PRM;
@@ -787,6 +788,8 @@ static t_eReturnCode s_APPSYS_ConvertAnaToEcuPos(t_float32 f_anaValue_f32, t_eAP
 {
     t_eReturnCode Ret_e = RC_WARNING_NO_OPERATION;
     t_uint8 idxAnaRange_u8;
+
+    Ret_e = RC_OK;
 
     for(idxAnaRange_u8 = (t_uint8)0 ; idxAnaRange_u8 < (t_uint8)APPSYS_ECU_POS_MAX ; idxAnaRange_u8++)
     {
