@@ -56,11 +56,7 @@
         APPSYS_FAST_TASK_DISABLE = 0x00,
         APPSYS_FAST_TASK_ENABLE,
     } t_eAPPSYS_FastTaskState;
-    /*
-    *
-    *	@brief  Perform Application system init
-    *	@note   
-    */
+    /** @brief Initializes application-system services and registered modules. */
     typedef void (t_cbAPPSYS_FastTask)(void);
     // ********************************************************************
     // *                      Prototypes
@@ -79,17 +75,12 @@
     *	@note   
     */
     void APPSYS_Init(void);
-    /*
-    *
-    *	@brief  Perform Application system cyclic
-    *	@note   
-    *
-    */
+    /** @brief Executes the application-system cyclic processing. */
     void APPSYS_Cyclic(void);
 
     /**
     *
-    *	@brief  Call driver cyclic function
+    *	@brief  Handles an assertion raised by an application module.
     *
     */
     void APPSYS_AssertionTrap(  t_uint16 f_Info_u16, 
@@ -98,7 +89,7 @@
                                 t_uint32 f_captureTime_u32);
     /**
     *
-    *	@brief  Add a Fast Task to be call every APPSYS_ELASPED_TIME_FASTTASK
+    *	@brief  Registers a fast task executed every APPSYS_ELASPED_TIME_FASTTASK.
     *   @note   Once you register it, the fast task will be considered enable 
     *           in the PreOPerationnal state of your module
     *
@@ -107,25 +98,25 @@
 
     /**
     *
-    *	@brief  Add a Fast Task to be call every APPSYS_ELASPED_TIME_FASTTASK
+    *	@brief  Enables or disables a registered fast task.
     *
     */
     t_eReturnCode APPSYS_SetFastTaskState(t_eAppSys_ModuleList f_ModuleId_e,  t_eAPPSYS_FastTaskState f_state_e);
     /**
     *
-    *	@brief  
+    *	@brief  Gets an application-system option value.
     *
     */
     t_eReturnCode APPSYS_GetSysOption(t_eAPPSYS_SysOptionList f_OptionID_e, t_uint8 * f_OptVal_pu8);
     /**
     *
-    *	@brief  
+    *	@brief  Sets an application-system option value.
     *
     */
     t_eReturnCode APPSYS_SetSysOption(t_eAPPSYS_SysOptionList f_OptionID_e, t_uint8 f_OptVal_u8);
     /**
     *
-    *	@brief  
+    *	@brief  Gets the ECU position configured for the application.
     *
     */
     t_eReturnCode APPSYS_GetEcuPosition(t_eAPPSYS_EcuPos * f_ecuPos_pe);

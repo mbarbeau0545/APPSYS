@@ -724,58 +724,66 @@ static t_eReturnCode s_APPSYS_UpdateEcuPos(void)
     t_float32 anaValue_f32;
     t_eAPPSYS_EcuPos ecuPosition_e = APPSYS_ECU_POS_NB;
 
-    Ret_e = FMKIO_Get_InAnaSigValue(APPSYS_IO_ANALOG_SIGNAL, &anaValue_f32);
-
-    if(Ret_e == RC_OK)
+    if(APPSYS_IMPOSE_ECU_ID == FALSE)
     {
-        Ret_e = s_APPSYS_ConvertAnaToEcuPos(anaValue_f32, &ecuPosition_e);
+        Ret_e = FMKIO_Get_InAnaSigValue(APPSYS_IO_ANALOG_SIGNAL, &anaValue_f32);
 
         if(Ret_e == RC_OK)
         {
-            //--- first time ecu is valid ----//
-            if(g_isEcuPosValid_b == FALSE)
+            Ret_e = s_APPSYS_ConvertAnaToEcuPos(anaValue_f32, &ecuPosition_e);
+
+            if(Ret_e == RC_OK)
             {
-                g_isEcuPosValid_b = TRUE;
-                g_ecuPos_e = ecuPosition_e;
-                FMKSRL_LOG("Ecu Position -> %d\r\n", (t_uint16)g_ecuPos_e);
-            }
-            else 
-            {
-                //---- if a changement of position occured ----//
-                if(ecuPosition_e != g_ecuPos_e)
+                //--- first time ecu is valid ----//
+                if(g_isEcuPosValid_b == FALSE)
                 {
-                    g_isEcuPosValid_b = FALSE;
-                    APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
-                                            APPSDM_DIAG_ITEM_REPORT_FAIL,
-                                            anaValue_f32,
-                                            (t_uint16)0);
+                    g_isEcuPosValid_b = TRUE;
+                    g_ecuPos_e = ecuPosition_e;
+                    FMKSRL_LOG("Ecu Position -> %d\r\n", (t_uint16)g_ecuPos_e);
                 }
                 else 
                 {
-                    APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
-                                            APPSDM_DIAG_ITEM_REPORT_PASS,
-                                            (t_uint16)0,
-                                            (t_uint16)0);
-                }
-            }            
+                    //---- if a changement of position occured ----//
+                    if(ecuPosition_e != g_ecuPos_e)
+                    {
+                        g_isEcuPosValid_b = FALSE;
+                        APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
+                                                APPSDM_DIAG_ITEM_REPORT_FAIL,
+                                                anaValue_f32,
+                                                (t_uint16)0);
+                    }
+                    else 
+                    {
+                        APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
+                                                APPSDM_DIAG_ITEM_REPORT_PASS,
+                                                (t_uint16)0,
+                                                (t_uint16)0);
+                    }
+                }            
+            }
+            else 
+            {
+                g_ecuPos_e = APPSYS_ECU_POS_NB;
+                g_isEcuPosValid_b = FALSE;
+                APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
+                                        APPSDM_DIAG_ITEM_REPORT_FAIL,
+                                        anaValue_f32,
+                                        (t_uint16)0);
+            }
         }
-        else 
+        else if(Ret_e != RC_WARNING_BUSY)
         {
-            g_ecuPos_e = APPSYS_ECU_POS_NB;
             g_isEcuPosValid_b = FALSE;
             APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
                                     APPSDM_DIAG_ITEM_REPORT_FAIL,
-                                    anaValue_f32,
+                                    Ret_e,
                                     (t_uint16)0);
         }
     }
-    else if(Ret_e != RC_WARNING_BUSY)
+    else 
     {
-        g_isEcuPosValid_b = FALSE;
-        APPSDM_ReportDiagEvnt(  APPSDM_DIAG_ITEM_APPSYS_ECU_POS_ERROR,
-                                APPSDM_DIAG_ITEM_REPORT_FAIL,
-                                Ret_e,
-                                (t_uint16)0);
+        g_ecuPos_e = APPSYS_ECU_ID;
+        g_isEcuPosValid_b = TRUE;
     }
 
     return Ret_e;
