@@ -26,6 +26,7 @@
     #include "1_FMK/FMK_HAL/FMK_TIM/Src/FMK_TIM.h"
     #include "1_FMK/FMK_HAL/FMK_CAN/Src/FMK_FDCAN.h"
     #include "1_FMK/FMK_HAL/FMK_SRL/Src/FMK_SRL.h"
+    #include "1_FMK/FMK_HAL/FMK_NVM/Src/FMK_NVM.h"
     #include "3_APP/APP_CTRL/APP_ACT/Src/APP_ACT.h"
     #include "3_APP/APP_CTRL/APP_SDM/Src/APP_SDM.h"
     #include "3_APP/APP_CTRL/APP_SPM/Src/APP_SPM.h"
@@ -124,6 +125,7 @@
 #ifdef APPSYS_MODULE_FMKSRL_ENABLE
         {FMKSRL_Init,   FMKSRL_Cyclic,      FMKSRL_GetState,   FMKSRL_SetState,     APPSIG_SIGNAL_FMKSRL_MODSTATE},
 #endif // APPSYS_MODULE_FMKSRL_ENABLE
+        {FMKNVM_Init,   FMKNVM_Cyclic,      FMKNVM_GetState,   FMKNVM_SetState,     APPSIG_SIGNAL_NB},
 
         //----- Application module -----//
         {APPSDM_Init,    APPSDM_Cyclic,     APPSDM_GetState,   APPSDM_SetState,      APPSIG_SIGNAL_APPSDM_MODSTATE},
