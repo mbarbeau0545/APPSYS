@@ -30,7 +30,7 @@
 // ********************************************************************
 typedef struct 
 {
-    t_uint16 debugInfo_u16;
+    t_sint32 debugInfo_s32;
     char file_ac[APPSYS_FILE_NAME_LEN];
     t_uint32 line_u32;
 } t_sAPPSYS_AssertInfo;
@@ -42,10 +42,10 @@ typedef struct
 typedef enum 
 {
     APPSYS_FSM_CFGSTATE_GET_ECU_POS = 0,                //---- get ecu position for the first time ----//
-    APPSYS_FSM_CFGSTATE_WAIT_RCV_PRM,                   //---- get waiting receive param ---//
     APPSYS_FSM_CFGSTATE_GET_MACH,                       //---- get the machine Id ----//
     APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT,       //---- get the system option default
     APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_PRM,           //---- get the system option from EEPROM ----//
+    APPSYS_FSM_CFGSTATE_DONE                            //---- Cfg state done ----//
 } t_eAPPSYS_FsmCfgSts;
 
 /* CAUTION : Automatic generated code section for Structure: Start */
@@ -184,7 +184,7 @@ void APPSYS_Init(void)
 
             if(Ret_e != RC_OK)
             {
-                ASSERT((t_uint16)modIndex_u8);
+                ASSERT((t_sint32)modIndex_u8);
             }
         }
     }
@@ -207,7 +207,8 @@ void APPSYS_Init(void)
                                 (t_cbFMKSRL_RcvMsgEvent *)NULL_FUNCTION,
                                 (t_cbFMKSRL_TransmitMsgEvent *)NULL_FUNCTION);  
     }
-    if(Ret_e == RC_OK)
+    if((Ret_e == RC_OK)
+    && (APPSYS_IMPOSE_ECU_ID == FALSE))
     {
         Ret_e = FMKIO_Set_InAnaSigCfg(  APPSYS_IO_ANALOG_SIGNAL,
                                         NULL,
@@ -226,12 +227,12 @@ void APPSYS_Init(void)
                                         s_APPSYS_FastTask);
     }
 
-    g_AssertInfo_s.debugInfo_u16 = (t_uint16)0;
+    g_AssertInfo_s.debugInfo_s32 = (t_uint16)0;
     g_AssertInfo_s.line_u32 = (t_uint32)0;
     
     if(Ret_e < RC_OK)
     {    
-        ASSERT((t_uint16)Ret_e);
+        ASSERT((t_sint32)Ret_e);
         g_AppSysModuleState_e = STATE_CYCLIC_ERROR;
     }
     return;
@@ -348,7 +349,7 @@ void APPSYS_Cyclic(void)
 /*********************************
  * APPSYS_AssertionTrap
  *********************************/
-void APPSYS_AssertionTrap(  t_uint16 f_Info_u16, 
+void APPSYS_AssertionTrap(  t_sint32 f_Info_s32, 
                             const char * f_file_str, 
                             t_uint32 f_line_u32,
                             t_uint32 f_captureTime_u32)
@@ -357,7 +358,7 @@ void APPSYS_AssertionTrap(  t_uint16 f_Info_u16,
     if(g_lockAssert_b == (t_bool)False)
     {
         g_lockAssert_b = (t_bool)True;
-        g_AssertInfo_s.debugInfo_u16 = f_Info_u16;
+        g_AssertInfo_s.debugInfo_s32 = f_Info_s32;
         strncpy(g_AssertInfo_s.file_ac, f_file_str, APPSYS_FILE_NAME_LEN - 1);
         g_AssertInfo_s.file_ac[APPSYS_FILE_NAME_LEN - 1] = '\0';  // Assurer la terminaison
         g_AssertInfo_s.line_u32 = f_line_u32;
@@ -366,7 +367,7 @@ void APPSYS_AssertionTrap(  t_uint16 f_Info_u16,
                     f_captureTime_u32,
                     g_AssertInfo_s.file_ac, 
                     f_line_u32,
-                    f_Info_u16);
+                    f_Info_s32);
     }
     return;
 }
@@ -385,7 +386,7 @@ t_eReturnCode APPSYS_AddFastTask(t_eAppSys_ModuleList f_ModuleId_e, t_cbAPPSYS_F
     else 
     {
         Ret_e = RC_ERROR_PARAM_INVALID;
-        ASSERT((t_uint16)(f_ModuleId_e));
+        ASSERT((t_sint32)(f_ModuleId_e));
     }
 
     return Ret_e;
@@ -406,7 +407,7 @@ t_eReturnCode APPSYS_SetFastTaskState(t_eAppSys_ModuleList f_ModuleId_e,  t_eAPP
     || (f_state_e > APPSYS_FAST_TASK_ENABLE))
     {
         Ret_e = RC_ERROR_PARAM_INVALID;
-        ASSERT((t_uint16)0);
+        ASSERT((t_sint32)0);
     }
     else if(Ret_e == RC_OK)
     {
@@ -441,12 +442,12 @@ t_eReturnCode APPSYS_GetSysOption(t_eAPPSYS_SysOptionList f_OptionID_e, t_uint8 
     if(f_OptionID_e >= APPSYS_OPT_ID_NB)
     {
         Ret_e = RC_ERROR_PARAM_INVALID;
-        ASSERT((t_uint16)0);
+        ASSERT((t_sint32)0);
     }
     else if(f_OptVal_pu8 == (t_uint8 *)NULL)
     {
         Ret_e = RC_ERROR_PTR_NULL;
-        ASSERT((t_uint16)0);
+        ASSERT((t_sint32)0);
     }
     else if((g_AppSysModuleState_e != STATE_CYCLIC_PREOPE)
     &&     (g_AppSysModuleState_e != STATE_CYCLIC_OPE)) 
@@ -472,7 +473,7 @@ t_eReturnCode APPSYS_SetSysOption(t_eAPPSYS_SysOptionList f_OptionID_e, t_uint8 
     if(f_OptionID_e >= APPSYS_OPT_ID_NB)
     {
         Ret_e = RC_ERROR_PARAM_INVALID;
-        ASSERT((t_uint16)0);
+        ASSERT((t_sint32)0);
     }
     else if((g_AppSysModuleState_e != STATE_CYCLIC_PREOPE)
     &&     (g_AppSysModuleState_e != STATE_CYCLIC_OPE)) 
@@ -497,7 +498,7 @@ t_eReturnCode APPSYS_GetEcuPosition(t_eAPPSYS_EcuPos * f_ecuPos_pe)
     if(f_ecuPos_pe == NULL)
     {
         Ret_e = RC_ERROR_PTR_NULL;
-        ASSERT((t_uint16)0);
+        ASSERT((t_sint32)0);
     }
     else if(g_isEcuPosValid_b == FALSE)
     {
@@ -597,41 +598,29 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
         case APPSYS_FSM_CFGSTATE_GET_ECU_POS:
             if(g_ecuPos_e < APPSYS_ECU_POS_NB)
             {
-                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_WAIT_RCV_PRM;
-            }
-            Ret_e = RC_WARNING_PENDING;
-        break;
-        case APPSYS_FSM_CFGSTATE_WAIT_RCV_PRM:
-        {
-            t_float32 isFlagRcv_f32;
-            if(APPSYS_EEPROM_PARAM_ENABLE == TRUE)
-            {
-                Ret_e = APPSIG_GetSignalValue(APPSYS_FLAG_PRM_RCV_STATUS, &isFlagRcv_f32);
-                if((Ret_e == RC_OK)
-                && (TRUE == (t_bool)isFlagRcv_f32))
-                {
-                    g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
-                }
-            }
-            else 
-            {
                 g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
             }
-
             Ret_e = RC_WARNING_PENDING;
-        }
         break;
         case APPSYS_FSM_CFGSTATE_GET_MACH:
         {
-            t_uAPPSPM_PrmValType sysOptValue_u = {.prmVal_u16 = 0};
+            t_uint16 SysMachVal_u16 = 0;
             if((APPSYS_EEPROM_PARAM_ENABLE == TRUE)
             && (APPSYS_SYS_MACH_BASED_ON_PRM == TRUE))
             {
-                Ret_e = APPSPM_GetParam(APPSPM_PRM_SYS_MACHINE_ID, &sysOptValue_u);
+                Ret_e = APPSPM_Get_SysMachineId(&SysMachVal_u16);
                 if(Ret_e == RC_OK)
                 {
                     Ret_e = RC_WARNING_PENDING;
-                    g_MachineID_e = (t_eAPPSYS_MachineList)sysOptValue_u.prmVal_u16;
+                    g_MachineID_e = (t_eAPPSYS_MachineList)SysMachVal_u16;
+
+                    //--- verify value ----//
+                    if(g_MachineID_e >= APPSYS_MACHINE_NB)
+                    {
+                        ASSERT((t_sint32)g_MachineID_e);
+                        g_MachineID_e = (t_eAPPSYS_MachineList)0;
+                    }
+
                     g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_DEFAULT;
                 }
                 else if (Ret_e >= RC_OK) 
@@ -665,14 +654,14 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
             else 
             {   
                 Ret_e = RC_OK;
-                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
+                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_DONE;
             }
         }
         break;
         case APPSYS_FSM_CFGSTATE_GET_MACH_SYS_OPT_PRM:
         {
             t_uint8 idxSysOpt_u8;
-            t_uAPPSPM_PrmValType sysOptValue_u = {.prmVal_u16 = 0};
+            t_uint16 PrmOptVal_u16 = 0;
             Ret_e = RC_OK;
 
             for(idxSysOpt_u8 = (t_uint8)0 ; 
@@ -680,15 +669,16 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
             idxSysOpt_u8++)
             {
                 Ret_e = APPSPM_GetParam(c_AppSys_SysOpt_ItemPrmID_ae[idxSysOpt_u8],
-                                        &sysOptValue_u);
+                                        (void *)&PrmOptVal_u16,
+                                        sizeof(PrmOptVal_u16));
                 if(Ret_e == RC_OK)
                 {
-                    g_MachSysOptValues_ua8[idxSysOpt_u8] = (t_uint8)sysOptValue_u.prmVal_u16;
+                    g_MachSysOptValues_ua8[idxSysOpt_u8] = (t_uint8)PrmOptVal_u16;
                 }
             }
             if(Ret_e == RC_OK)
             {
-                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_MACH;
+                g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_DONE;
             }
             else if(Ret_e > RC_OK)
             {
@@ -697,7 +687,9 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
             //--- else propagete error ----//
             break;
         }
+        case APPSYS_FSM_CFGSTATE_DONE:
         default:
+            g_FsmCfgSts_e = APPSYS_FSM_CFGSTATE_GET_ECU_POS;
             Ret_e = RC_ERROR_NOT_ALLOWED;
         break;
     }
@@ -711,7 +703,7 @@ static t_eReturnCode s_APPSYS_ConfigurationState()
 static t_eReturnCode s_APPSYS_Operational(void)
 {
     t_eReturnCode Ret_e = RC_OK;
-    
+
     return Ret_e;
 }
 
@@ -807,7 +799,7 @@ static t_eReturnCode s_APPSYS_ConvertAnaToEcuPos(t_float32 f_anaValue_f32, t_eAP
             if(idxAnaRange_u8 >= APPSYS_ECU_POS_NB)
             {
                 Ret_e = RC_ERROR_WRONG_RESULT;
-                ASSERT((t_uint16)idxAnaRange_u8);
+                ASSERT((t_sint32)idxAnaRange_u8);
                 break;
             }
             else 
@@ -820,7 +812,7 @@ static t_eReturnCode s_APPSYS_ConvertAnaToEcuPos(t_float32 f_anaValue_f32, t_eAP
     }
     if(Ret_e == RC_WARNING_NO_OPERATION)
     {
-        ASSERT((t_uint16)0);
+        ASSERT((t_sint32)0);
     }
     
     return Ret_e;
@@ -841,7 +833,7 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
     Ret_e = SMB_Read(&g_sfbk_mskfastTask_s, &mskfastTaskCall_u16, sizeof(t_uint16));
     if(Ret_e != RC_OK)
     {
-        ASSERT((t_uint16)Ret_e);
+        ASSERT((t_sint32)Ret_e);
     }
     else 
     {
@@ -855,7 +847,7 @@ static void s_APPSYS_FastTask(t_eFMKTIM_InterruptLineType f_InterruptType_e, t_u
                                                 FMKTIM_EVNT_OPE_STOP_TIMER);
                 if(Ret_e != RC_OK)
                 {
-                    ASSERT((t_uint16)Ret_e);
+                    ASSERT((t_sint32)Ret_e);
                 }
                 else 
                 {
@@ -919,7 +911,7 @@ static void s_APPSYS_SigAnaCallback(t_eFMKIO_SigType f_sigType_e,
     }
     else 
     {
-        ASSERT((t_uint16)f_sigType_e);
+        ASSERT((t_sint32)f_sigType_e);
     }
 }
 //************************************************************************************

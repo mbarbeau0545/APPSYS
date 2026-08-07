@@ -83,7 +83,7 @@
     *	@brief  Handles an assertion raised by an application module.
     *
     */
-    void APPSYS_AssertionTrap(  t_uint16 f_Info_u16, 
+    void APPSYS_AssertionTrap(  t_sint32 f_Info_s32,
                                 const char * f_file_str, 
                                 t_uint32 f_line_u32,
                                 t_uint32 f_captureTime_u32);
